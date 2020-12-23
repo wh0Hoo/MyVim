@@ -83,3 +83,7 @@ inoremap <C-V> "*p
 "exe 'inoremap <script> <C-V>' paste#paste_cmd['i']
 "exe 'vnoremap <script> <C-V>' paste#paste_cmd['v']
 nmap <C-C> :normal I/* <Esc>A */<Esc>
+
+" clear pattern search
+nnoremap <silent> <Esc><Esc> :let @/=""<CR>
+"nnoremap <silent> <Esc><Esc> :noh " turn off highlighting until next search
