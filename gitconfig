@@ -1,0 +1,6 @@
+[core]
+	editor = vim
+[alias]
+	lg = log --graph --decorate --format=format:'%C(auto)%h%C(reset) : %C(bold green)(%ar)%C(reset) - %C(cyan)<%an>%C(reset)%C(auto)%d%C(reset)%n%n%w(90,1,2)%C(white)%B%C(reset)%n'
+[pull]
+	rebase = true
