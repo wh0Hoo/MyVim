@@ -22,6 +22,7 @@ set pt=<Ins>		"Insert 키로 paste 상태와 nopaste 상태를 전환한다.
 "set fencs=ucs-bom,utf-8,cp949
 "set incsearch		"키워드 입력시 점진적 검색
 "set ignorecase		"검색시 대소문자 무시, set ic 도 가능
+set viewoptions=cursor,folds
 
 autocmd BufRead *.c,*.cpp,*.h loadview
 autocmd BufWrite *.c,*.cpp,*.h mkview
