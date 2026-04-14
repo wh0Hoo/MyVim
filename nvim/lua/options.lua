@@ -13,9 +13,10 @@ opt.fileformat = "unix"     -- end_of_line = lf
 opt.smartindent = true
 
 -- 검색
-opt.ignorecase = true
-opt.smartcase = true
-opt.hlsearch = false
+opt.ignorecase = false
+opt.smartcase = false
+opt.hlsearch = true    -- 검색 결과 하이라이트
+opt.incsearch = false  -- 입력하면서 실시간 검색
 
 -- UI
 opt.termguicolors = true
@@ -42,3 +43,5 @@ vim.api.nvim_create_autocmd("BufReadPost", {
     end
   end,
 })
+
+vim.keymap.set("n", "<Esc><Esc>", "<cmd>noh<cr>", { desc = "하이라이트 제거" })
