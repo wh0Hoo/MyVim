@@ -8,3 +8,11 @@
 
 NeoVim 으로 이전했다   
 따라서 설정은 nvim 폴더를 ~/.config/ 에 복사해서 사용하자
+
+## ⚡ Quick Start for NeoVim
+
+```bash
+git clone https://github.com/wh0Hoo/MyVim
+cd MyVim
+cp -af nvim ~/.config/
+```
