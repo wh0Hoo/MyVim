@@ -12,7 +12,7 @@ NeoVim 으로 이전했다
 ## ⚡ Quick Start for NeoVim
 
 ```bash
-git clone https://github.com/wh0Hoo/MyVim
+git clone https://github.com/wh0Hoo/MyVim # or git@github.com:wh0Hoo/MyVim.git
 cd MyVim
 cp -af nvim ~/.config/
 ```
