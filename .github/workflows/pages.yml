@@ -1,0 +1,48 @@
+name: Deploy Pages with Commit Info
+
+on:
+  push:
+    branches: [ "main" ]
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Generate commit data
+      run: |
+        mkdir -p docs/_data
+
+        COMMIT_HASH=$(git rev-parse HEAD)
+        SHORT_HASH=$(git rev-parse --short HEAD)
+        COMMIT_MSG=$(git log -1 --pretty=%s | sed 's/"/\\"/g')
+        COMMIT_AUTHOR=$(git log -1 --pretty=%an | sed 's/"/\\"/g')
+        COMMIT_DATE=$(git log -1 --date=format:'%Y-%m-%d %H:%M' --pretty=%cd)
+
+        cat <<EOF > docs/_data/commit.yml
+        hash: "$COMMIT_HASH"
+        short: "$SHORT_HASH"
+        message: "$COMMIT_MSG"
+        author: "$COMMIT_AUTHOR"
+        date: "$COMMIT_DATE"
+        EOF
+
+    - name: Setup Pages
+      uses: actions/configure-pages@v5
+
+    - name: Build
+      uses: actions/jekyll-build-pages@v1
+
+    - name: Upload
+      uses: actions/upload-pages-artifact@v3
+
+    - name: Deploy
+      uses: actions/deploy-pages@v4

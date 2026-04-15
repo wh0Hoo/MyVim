@@ -1,3 +1,81 @@
+<style>
+.commit-card {
+  margin: 20px 0;
+  padding: 16px 20px;
+  border-radius: 12px;
+  border: 1px solid #e1e4e8;
+  background: #f6f8fa;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+  font-size: 14px;
+}
+
+.commit-row {
+  display: flex;
+  justify-content: space-between;
+  margin: 6px 0;
+}
+
+.commit-row .label {
+  font-weight: 600;
+  color: #57606a;
+}
+
+.commit-row .value {
+  color: #24292f;
+}
+
+.commit-card a {
+  text-decoration: none;
+  color: #0969da;
+}
+
+/* 🌙 Dark mode */
+@media (prefers-color-scheme: dark) {
+  .commit-card {
+    background: #161b22;
+    border: 1px solid #30363d;
+  }
+
+  .commit-row .label {
+    color: #8b949e;
+  }
+
+  .commit-row .value {
+    color: #c9d1d9;
+  }
+
+  .commit-card a {
+    color: #58a6ff;
+  }
+}
+</style>
+
+<div class="commit-card">
+  <div class="commit-row">
+    <span class="label">🕒 Last updated</span>
+    <span class="value">{{ site.data.commit.date }}</span>
+  </div>
+
+  <div class="commit-row">
+    <span class="label">🔗 Commit</span>
+    <span class="value">
+      <a href="{{ site.github.repository_url }}/commit/{{ site.data.commit.hash }}">
+        {{ site.data.commit.short }}
+      </a>
+    </span>
+  </div>
+
+  <div class="commit-row">
+    <span class="label">📝 Message</span>
+    <span class="value">{{ site.data.commit.message }}</span>
+  </div>
+
+  <div class="commit-row">
+    <span class="label">👤 Author</span>
+    <span class="value">{{ site.data.commit.author }}</span>
+  </div>
+</div>
+
 # wh0Hoo
 
 회사 다니면서 사용했던 나의 vim 설정들이지만,,,
