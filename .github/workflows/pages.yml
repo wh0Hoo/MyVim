@@ -40,6 +40,8 @@ jobs:
 
     - name: Build
       uses: actions/jekyll-build-pages@v1
+      with:
+        source: ./docs
 
     - name: Upload
       uses: actions/upload-pages-artifact@v3

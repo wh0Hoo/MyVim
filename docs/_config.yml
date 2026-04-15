@@ -1,0 +1,29 @@
+# 사이트 기본 정보
+title: wh0Hoo
+description: My Vim / NeoVim configuration
+
+# Markdown을 GitHub 스타일로 맞춤 (핵심)
+markdown: GFM
+
+# GitHub Pages 기본 테마 (깔끔하고 안정적)
+theme: jekyll-theme-primer
+
+# 플러그인 (GitHub Pages 기본 지원)
+plugins:
+  - jekyll-relative-links
+  - jekyll-seo-tag
+
+# 상대 경로 링크 지원 (docs 내부 링크용)
+relative_links:
+  enabled: true
+  collections: true
+
+# 기본 Markdown 확장
+kramdown:
+  input: GFM
+  hard_wrap: false
+
+# 불필요 파일 제외
+exclude:
+  - README.md
+  - node_modules
