@@ -14,9 +14,10 @@ NeoVim 으로 이전했다
 ## ⚡ Quick Start for NeoVim
 
 ```bash
-git clone https://github.com/wh0Hoo/MyVim # or git@github.com:wh0Hoo/MyVim.git
+git clone https://github.com/wh0Hoo/MyVim
 cd MyVim
-rsync -av --delete ./nvim/ ~/.config/nvim/ # 기존 내용을 모두 제거하면서 복사한다
+# 기존 내용을 모두 제거하면서 복사한다
+rsync -av --delete ./nvim/ ~/.config/nvim/
 ```
 
 ---

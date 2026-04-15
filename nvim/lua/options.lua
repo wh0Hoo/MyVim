@@ -1,8 +1,10 @@
 local opt = vim.opt
 
+vim.g.editorconfig = false
+
 -- 줄 번호
 opt.number = true
-opt.relativenumber = true
+opt.relativenumber = false
 
 -- 탭/들여쓰기
 opt.tabstop = 8        -- tab_width = 8
@@ -27,7 +29,10 @@ opt.wrap = true
 opt.linebreak = true
 
 -- 시스템 클립보드
-opt.clipboard = "unnamedplus"
+-- opt.clipboard = "unnamedplus"
+
+-- 마우스 비활성화
+opt.mouse = ""
 
 -- 분할 방향
 opt.splitright = true
