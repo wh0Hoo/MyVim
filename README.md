@@ -1,4 +1,4 @@
-# wh0Hoo
+# MyVim
 
 회사 다니면서 사용했던 나의 vim 설정들이지만,,,
 
@@ -11,7 +11,7 @@ NeoVim 으로 이전했다
 
 ---
 
-## ⚡ Quick Start for NeoVim
+## ⚡ Quick Start for MyVim
 
 ```bash
 git clone https://github.com/wh0Hoo/MyVim
