@@ -20,12 +20,13 @@ map("n", "<S-h>", "<cmd>bprev<cr>")
 map("v", "<", "<gv")
 map("v", ">", ">gv")
 
--- keymaps.lua 에 추가
+-- relativenumber 토글
 vim.keymap.set("n", "<leader>tr", function()
   vim.opt.relativenumber = not vim.opt.relativenumber:get()
   print("relativenumber: " .. tostring(vim.opt.relativenumber:get()))
 end, { desc = "relativenumber 토글" })
 
+-- mouse 토글
 vim.keymap.set("n", "<leader>tm", function()
   if vim.opt.mouse:get().a then
     vim.opt.mouse = ""
@@ -35,3 +36,6 @@ vim.keymap.set("n", "<leader>tm", function()
     print("mouse: on")
   end
 end, { desc = "mouse 토글" })
+
+-- 시스템 클립보드로 복사
+vim.keymap.set("v", "<C-c>", '"+y', { desc = "시스템 클립보드로 복사" })
