@@ -1,0 +1,43 @@
+{
+  "permissions": {
+    "allow": [],
+    "deny": [
+      "NotebookEdit",
+      "CronCreate",
+      "CronDelete",
+      "CronList",
+      "TaskOutput",
+      "PushNotification",
+      "RemoteTrigger",
+      "ScheduleWakeup",
+      "mcp__ide__executeCode",
+      "mcp__ide__getDiagnostics"
+    ],
+    "defaultMode": "plan"
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 ~/.claude/hooks/plan_mode_guard.py"
+          }
+        ]
+      }
+    ]
+  },
+  "statusLine": {
+    "type": "command",
+    "command": "python3 ~/.claude/statusline.py"
+  },
+  "enabledPlugins": {
+    "clangd-lsp@claude-plugins-official": true,
+    "rust-analyzer-lsp@claude-plugins-official": true
+  },
+  "advisorModel": "opus",
+  "promptSuggestionEnabled": false,
+  "remoteControlAtStartup": false,
+  "skipAutoPermissionPrompt": false
+}
