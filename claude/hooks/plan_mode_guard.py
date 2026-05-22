@@ -1,13 +1,23 @@
 import json
 import sys
 import os
+from pathlib import Path
 
-data = json.load(sys.stdin)
+try:
+    data = json.load(sys.stdin)
+except json.JSONDecodeError:
+    sys.exit(0)
+
 mode = data.get("permission_mode", "")
 file_path = data.get("tool_input", {}).get("file_path", "")
-plans_dir = os.path.expanduser("~/.claude/plans/")
+plans_dir = Path(os.path.expanduser("~/.claude/plans/")).resolve()
 
-if mode == "plan" and not file_path.startswith(plans_dir):
+try:
+    in_plans = Path(file_path).resolve().is_relative_to(plans_dir)
+except (ValueError, OSError):
+    in_plans = False
+
+if mode == "plan" and not in_plans:
     print(json.dumps({
         "hookSpecificOutput": {
             "hookEventName": "PreToolUse",

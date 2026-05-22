@@ -15,6 +15,7 @@
     ],
     "defaultMode": "plan"
   },
+  "model": "sonnet",
   "hooks": {
     "PreToolUse": [
       {
@@ -36,8 +37,8 @@
     "clangd-lsp@claude-plugins-official": true,
     "rust-analyzer-lsp@claude-plugins-official": true
   },
-  "advisorModel": "opus",
   "promptSuggestionEnabled": false,
   "remoteControlAtStartup": false,
-  "skipAutoPermissionPrompt": false
+  "skipAutoPermissionPrompt": true,
+  "advisorModel": "opus"
 }
