@@ -13,9 +13,9 @@
       "mcp__ide__executeCode",
       "mcp__ide__getDiagnostics"
     ],
-    "defaultMode": "plan"
+    "defaultMode": "auto"
   },
-  "model": "sonnet",
+  "model": "fable",
   "hooks": {
     "PreToolUse": [
       {
@@ -37,8 +37,15 @@
     "clangd-lsp@claude-plugins-official": true,
     "rust-analyzer-lsp@claude-plugins-official": true
   },
+  "extraKnownMarketplaces": {
+    "xn": {
+      "source": {
+        "source": "git",
+        "url": "git@192.168.0.14:xios/ai-agent-marketplaces.git"
+      }
+    }
+  },
   "promptSuggestionEnabled": false,
   "remoteControlAtStartup": false,
-  "skipAutoPermissionPrompt": true,
-  "advisorModel": "opus"
+  "skipAutoPermissionPrompt": true
 }

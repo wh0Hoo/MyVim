@@ -1,12 +1,15 @@
 #!/usr/bin/env python3
 import json, sys, os, glob, time, re, shutil, fcntl, termios, struct
+import hashlib, urllib.request
 from datetime import datetime, timezone, timedelta
 
 PRICING = {
+    'claude-fable-5':     {'in': 10.0,  'out': 50.0,  'cw': 12.50, 'cr': 1.00},
+    'claude-opus-4-8':    {'in': 5.0,   'out': 25.0,  'cw': 6.25,  'cr': 0.50},
     'claude-sonnet-4-6':  {'in': 3.0,   'out': 15.0,  'cw': 3.75,  'cr': 0.30},
-    'claude-opus-4-7':    {'in': 15.0,  'out': 75.0,  'cw': 18.75, 'cr': 1.50},
-    'claude-opus-4-5':    {'in': 15.0,  'out': 75.0,  'cw': 18.75, 'cr': 1.50},
-    'claude-haiku-4-5':   {'in': 0.25,  'out': 1.25,  'cw': 0.30,  'cr': 0.03},
+    'claude-opus-4-7':    {'in': 5.0,   'out': 25.0,  'cw': 6.25,  'cr': 0.50},
+    'claude-opus-4-5':    {'in': 5.0,   'out': 25.0,  'cw': 6.25,  'cr': 0.50},
+    'claude-haiku-4-5':   {'in': 1.0,   'out': 5.0,   'cw': 1.25,  'cr': 0.10},
     'claude-sonnet-4-5':  {'in': 3.0,   'out': 15.0,  'cw': 3.75,  'cr': 0.30},
 }
 DEFAULT_P = PRICING['claude-sonnet-4-6']
@@ -231,6 +234,61 @@ def get_weekly_cost() -> float:
         pass
     return cost
 
+def probe_rate_limits():
+    # ANTHROPIC_AUTH_TOKEN 세션용: Claude Code가 rate_limits를 전달하지 않으므로
+    # 최소 비용 API 호출의 응답 헤더(anthropic-ratelimit-unified-*)에서 직접 조회
+    token = os.environ.get('ANTHROPIC_AUTH_TOKEN')
+    if not token:
+        return None
+    h = hashlib.sha256(token.encode()).hexdigest()[:12]
+    cache_path = f'/tmp/statusline_probe_{h}.json'
+    cached = None
+    try:
+        with open(cache_path) as f:
+            cached = json.load(f)
+        if time.time() - cached.get('ts', 0) < CACHE_TTL:
+            return cached.get('data')
+    except Exception:
+        pass
+    # 동시 실행 중복 호출 방지: ts를 먼저 기록 (다른 인스턴스는 5분간 stale 사용)
+    try:
+        with open(cache_path, 'w') as f:
+            json.dump({'ts': time.time(),
+                       'data': cached.get('data') if cached else None}, f)
+    except Exception:
+        pass
+    try:
+        req = urllib.request.Request(
+            'https://api.anthropic.com/v1/messages',
+            data=json.dumps({
+                'model': 'claude-haiku-4-5', 'max_tokens': 1,
+                'messages': [{'role': 'user', 'content': 'hi'}],
+            }).encode(),
+            headers={
+                'Authorization': f'Bearer {token}',
+                'anthropic-version': '2023-06-01',
+                'anthropic-beta': 'oauth-2025-04-20',
+                'content-type': 'application/json',
+            },
+        )
+        with urllib.request.urlopen(req, timeout=3) as resp:
+            hdr = resp.headers
+        data = {}
+        for key, prefix in (('five_hour', '5h'), ('seven_day', '7d')):
+            util = hdr.get(f'anthropic-ratelimit-unified-{prefix}-utilization')
+            reset = hdr.get(f'anthropic-ratelimit-unified-{prefix}-reset')
+            if util is not None and reset is not None:
+                data[key] = {'used_percentage': float(util) * 100,
+                             'resets_at': int(reset)}
+        if not data:
+            raise ValueError('no rate limit headers')
+        with open(cache_path, 'w') as f:
+            json.dump({'ts': time.time(), 'data': data}, f)
+        return data
+    except Exception:
+        return cached.get('data') if cached else None
+
+
 def main():
     stdin_data = json.loads(sys.stdin.read() or '{}')
 
@@ -241,6 +299,8 @@ def main():
                  if advisor else f'{CYAN}{model_name}{R}')
 
     rate_limits = stdin_data.get('rate_limits') or {}
+    if not rate_limits:
+        rate_limits = probe_rate_limits() or {}
     session_str = fmt_limit(rate_limits.get('five_hour') or {}, is_5h=True)
     weekly_str  = fmt_limit(rate_limits.get('seven_day') or {}, is_5h=False)
 
