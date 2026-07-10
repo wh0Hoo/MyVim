@@ -22,6 +22,7 @@ relative_links:
 kramdown:
   input: GFM
   hard_wrap: false
+  toc_levels: 2  # 목차({:toc})에 ## 대단원만 표시
 
 # 불필요 파일 제외
 exclude:
