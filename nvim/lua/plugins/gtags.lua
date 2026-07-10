@@ -11,6 +11,8 @@
 --   실제 소스 파일 목록만 gtags 에 넘긴다 (git ls-files → 없으면 find).
 --   트리 전체를 훑지 않으므로 dev/core(→/proc/kcore) 같은 특수 파일,
 --   바이너리, 빌드 산출물이 인덱싱 대상에서 원천 제외된다.
+-- 증분 갱신: 저장(BufWritePost)·nvim-tree 파일 조작 시 해당 파일만 자동 반영
+--   (gtags --single-update). GTAGS 가 있는 프로젝트에서만 동작.
 -- 사전 조건: GNU Global(gtags, gtags-cscope) 설치
 --
 -- 키맵 (<prefix> = <C-\>, 기존 .vim/plugin/cscope_maps.vim 스타일):
@@ -181,6 +183,47 @@ local function build()
   end)
 end
 
+-- 증분 갱신: nvim 안의 파일 변경(저장·생성·삭제·이름변경)을 한 파일 단위로 DB 에 반영.
+-- gtags --single-update 는 수정·신규·삭제를 모두 처리한다.
+-- 에디터 밖 변경(git pull 등)은 :GtagsBuild 전체 재빌드 담당.
+local upd_ext = {}
+for _, e in ipairs(vim.split(SRC_EXT, ",", { plain = true })) do upd_ext["." .. e] = true end
+
+local updating = false
+local pending = {}  -- path → true (갱신 중 들어온 요청은 병합 후 순차 처리)
+
+local function run_single_update(path)
+  local found = vim.fs.find("GTAGS", { upward = true, path = vim.fs.dirname(path), type = "file" })
+  if #found == 0 then return end  -- DB 없는 프로젝트: 아무것도 하지 않음
+  local root = vim.fs.dirname(found[1])
+  updating = true
+  vim.system(
+    { "gtags", "--single-update", path:sub(#root + 2) },
+    { cwd = root },
+    vim.schedule_wrap(function()
+      updating = false  -- 실패해도 조용히 무시 (다음 전체 재빌드에서 해소)
+      local queued = next(pending)
+      if queued then
+        pending[queued] = nil
+        run_single_update(queued)
+      end
+    end)
+  )
+end
+
+local function single_update(path)
+  if building then return end
+  if not path or path == "" or vim.fn.executable("gtags") ~= 1 then return end
+  path = vim.fs.normalize(path)
+  local ext = path:match("(%.[^%./]+)$")
+  if not ext or not upd_ext[ext] then return end
+  if updating then
+    pending[path] = true
+    return
+  end
+  run_single_update(path)
+end
+
 return {
   {
     "dhananjaylatkar/cscope_maps.nvim",
@@ -205,6 +248,25 @@ return {
 
       -- <C-]>: clangd/gtags 중 있는 것만 사용 (없는 백엔드 에러 노이즈 방지)
       vim.keymap.set("n", "<C-]>", smart_tag, { desc = "정의로 점프 (clangd → gtags)" })
+
+      -- 증분 갱신 트리거 (GTAGS 가 있는 프로젝트에서만 동작)
+      vim.api.nvim_create_autocmd("BufWritePost", {
+        pattern = { "*.c", "*.cpp", "*.cc", "*.cxx", "*.h", "*.hpp", "*.hxx" },
+        callback = function(args)
+          single_update(vim.api.nvim_buf_get_name(args.buf))
+        end,
+        desc = "gtags 증분 갱신 (저장)",
+      })
+      local ok, nt = pcall(require, "nvim-tree.api")
+      if ok then
+        local E = nt.events.Event
+        nt.events.subscribe(E.FileCreated, function(d) single_update(d.fname) end)
+        nt.events.subscribe(E.FileRemoved, function(d) single_update(d.fname) end)
+        nt.events.subscribe(E.NodeRenamed, function(d)
+          single_update(d.old_name)  -- 옛 경로 제거
+          single_update(d.new_name)  -- 새 경로 등록
+        end)
+      end
     end,
   },
 }
