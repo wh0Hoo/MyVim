@@ -1,9 +1,10 @@
 # Changelog
 
 MyVim 의 버전별 변경 이력. [Semantic Versioning](https://semver.org/lang/ko/) 을 따른다 —
-0.x 동안은 MINOR = 기능 추가, PATCH = 수정·문서. 의미 있는 변경 묶음이 완결될 때
-annotated tag (`v0.x.y`) 로 릴리즈하며, 릴리즈 시 `nvim/lua/version.lua` 를 함께 갱신한다.
-설치된 설정의 버전은 nvim 에서 `:MyVimVersion` 으로 확인한다.
+0.x 동안은 MINOR = 기능 추가, PATCH = 버그 수정. 버전은 설정(`nvim/`, `.vim/`, `.vimrc`)의
+변경에만 부여하며, 문서·Pages 만의 변경은 버전에 반영하지 않는다. 의미 있는 변경 묶음이
+완결될 때 annotated tag (`v0.x.y`) 로 릴리즈하며, 릴리즈 시 `nvim/lua/version.lua` 를 함께
+갱신한다. 설치된 설정의 버전은 nvim 에서 `:MyVimVersion` 으로 확인한다.
 
 ## [0.1.0] - 2026-07-10
 
