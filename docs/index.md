@@ -64,7 +64,7 @@ rsync -av --delete ./nvim/ ~/.config/nvim/
 
 | 항목 | 용도 | 설치 예 |
 |------|------|---------|
-| `gtags` / `global` | `<Space>ga` 등 gtags 키맵 | `apt install global` |
+| `gtags` / `global` | `Ctrl-\` gtags 검색 키맵, `:GtagsBuild` | `apt install global` |
 | `claude` CLI | `claude-code.nvim` 플러그인 동작 조건 | Anthropic 공식 설치 방법 따름 |
 
 **자동으로 설치되는 것들 (수동 불필요)**

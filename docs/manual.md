@@ -224,34 +224,94 @@ LSP, 버퍼, 경로, 스니펫에서 자동완성을 제공한다.
 :Telescope help_tags     " 도움말 검색
 ```
 
-Telescope 창 내에서:
+Telescope 창은 **normal 모드로 열린다** — `j`/`k`로 바로 이동하고, 검색어 입력은 `i`로 시작한다.
 
 | 키 | 동작 |
 |----|------|
-| `Ctrl-j` / `Ctrl-k` | 목록 위아래 이동 |
+| `j` / `k` | 목록 위아래 이동 (normal 모드) |
+| `i` 또는 `/` | 필터 입력 시작 |
+| `Ctrl-j` / `Ctrl-k` | 목록 위아래 이동 (입력 중) |
 | `Enter` | 선택한 파일 열기 |
 | `Ctrl-x` | 수평 분할로 열기 |
 | `Ctrl-v` | 수직 분할로 열기 |
-| `Esc` | 닫기 |
+| `Esc` | 닫기 (normal 모드에서) |
 
 ---
 
-## Gtags 코드 탐색
+## C/C++ 소스 분석 (clangd + gtags 2트랙)
 
-대규모 C/C++ 코드베이스 탐색에 사용한다. `gtags` 명령으로 DB를 먼저 생성해야 한다.
+C/C++ 코드 탐색은 성격이 다른 두 도구를 역할 분담해 사용한다.
 
-```bash
-# 프로젝트 루트에서 DB 생성
-gtags
+| 상황 | 도구 | 키 |
+|------|------|----|
+| 정의 점프, 자동완성, 진단, 이름 변경 | **clangd** (의미 기반, 정밀) | `Ctrl-]`, `gd`, `K` |
+| 전체 트리 심볼/참조/호출자 검색 | **gtags** (색인 기반, 대형 트리에 강함) | `Ctrl-\` + 문자 |
+
+### 정의 점프 (Ctrl-])
+
+`Ctrl-]` 하나로 사용 가능한 백엔드를 자동 선택한다.
+
+- clangd가 연결되어 있으면 clangd 정의를 우선 사용
+- clangd가 없거나 정의를 못 찾으면 gtags로 자동 폴백
+- 둘 다 없으면 안내 메시지만 출력 (에러 없음)
+- `Ctrl-t` 로 점프 전 위치로 복귀 (태그 스택)
+
+### clangd용 compile_commands.json 생성 (ccgen)
+
+clangd가 헤더를 못 찾거나, 열어본 적 없는 `.c`의 구현부로 점프가 안 될 때 사용한다.
+
 ```
+:CCGen       " 스캔 → include 추론 → compile_commands.json 생성 → clangd 재시작
+:CCGenInfo   " 생성 없이 추론 결과 미리보기
+```
+
+- `git ls-files`로 스캔한다 (비-git 프로젝트는 파일시스템 스캔으로 자동 전환)
+- 각 소스가 실제 include 하는 경로만 그 파일의 `-I`로 기록 → 대형 트리에서도 파일 크기 안전
+- 생성 직후 clangd가 백그라운드 인덱싱을 시작한다 (대형 트리는 수 분, `~/.cache/clangd/`에 캐시)
+- 생성물은 절대 경로를 포함하므로 커밋하지 말 것 (프로젝트 gitignore 권장)
+
+크로스 컴파일 등 프로젝트별 설정은 루트에 `.ccgen.lua` 파일로 지정한다 (선택):
+
+```lua
+return {
+  compiler = "/opt/toolchain/bin/arm-linux-gnueabihf-gcc",
+  flags = { "--target=arm-linux-gnueabihf", "--sysroot=/opt/tc/sysroot" },
+  extra_includes = { "/opt/tc/sysroot/usr/include" },
+  source_dirs = { "src", "lib" },   -- 지정 시 이 경로만 스캔
+  ignore_dirs = { "build" },
+}
+```
+
+### gtags 전체 트리 검색 (Ctrl-\)
+
+먼저 DB를 한 번 빌드한다. 소스 수정 후에도 같은 키로 재빌드하면 된다.
 
 | 키 | 동작 |
 |----|------|
-| `<Space>ga` | gtags DB 폴더 추가 |
-| `<Space>gs` | 커서 단어로 심볼 검색 |
-| `<Space>gg` | 커서 단어의 정의 검색 |
-| `<Space>gl` | 추가된 DB 목록 출력 |
-| `<Space>gc` | DB 목록 초기화 |
+| `Ctrl-\ b` | gtags DB 빌드 (`:GtagsBuild` — 실제 소스 파일 목록만 인덱싱) |
+
+커서를 심볼에 두고 누르면 프롬프트 없이 즉시 검색된다:
+
+| 키 | 동작 |
+|----|------|
+| `Ctrl-\ g` | 정의 검색 |
+| `Ctrl-\ s` | 참조 검색 (심볼을 쓰는 모든 곳) |
+| `Ctrl-\ c` | 호출자 검색 (이 함수를 부르는 곳) |
+| `Ctrl-\ t` | 텍스트 검색 |
+| `Ctrl-\ e` | egrep 패턴 검색 |
+| `Ctrl-\ f` | 커서 밑 파일 열기 |
+| `Ctrl-\ i` | 이 파일을 include 하는 파일 검색 |
+| `Ctrl-\ a` | 이 심볼에 값을 대입하는 곳 검색 |
+
+`d`(이 함수가 호출하는 함수)는 gtags-cscope 미지원 — 함수 본문에서 `Ctrl-]`로 따라간다.
+
+결과가 한 건이면 바로 점프하고, 여러 건이면 Telescope 팝업이 normal 모드로 열린다:
+
+| 키 | 동작 |
+|----|------|
+| `j` / `k` | 항목 이동 |
+| `Enter` | 선택·점프 (팝업 자동 닫힘) |
+| `i` 또는 `/` | 필터 입력 시작 |
 
 ---
 
