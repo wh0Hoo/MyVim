@@ -18,7 +18,7 @@ opt.smartindent = true
 opt.ignorecase = false
 opt.smartcase = false
 opt.hlsearch = true    -- 검색 결과 하이라이트
-opt.incsearch = false  -- 입력하면서 실시간 검색
+opt.incsearch = false  -- 입력 중 실시간 검색 비활성
 
 -- UI
 opt.termguicolors = true
@@ -48,5 +48,3 @@ vim.api.nvim_create_autocmd("BufReadPost", {
     end
   end,
 })
-
-vim.keymap.set("n", "<Esc><Esc>", "<cmd>noh<cr>", { desc = "하이라이트 제거" })

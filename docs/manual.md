@@ -143,7 +143,7 @@
 
 | 키 | 동작 |
 |----|------|
-| `Ctrl-c` | 시스템 클립보드로 복사 |
+| `Ctrl-c` | 시스템 클립보드로 복사 (Visual 모드에서 선택 후) |
 
 ---
 
@@ -198,10 +198,10 @@ LSP, 버퍼, 경로, 스니펫에서 자동완성을 제공한다.
 
 ## 파일 탐색기 (nvim-tree)
 
-```
-:NvimTreeToggle   " 파일 트리 열기/닫기
-:NvimTreeFocus    " 파일 트리로 포커스 이동
-```
+| 키 / 명령 | 동작 |
+|-----------|------|
+| `<Space>n` | 파일 트리 열기/닫기 |
+| `:NvimTreeFocus` | 파일 트리로 포커스 이동 |
 
 파일 트리 내에서:
 
@@ -217,12 +217,12 @@ LSP, 버퍼, 경로, 스니펫에서 자동완성을 제공한다.
 
 ## 퍼지 검색 (Telescope)
 
-```
-:Telescope find_files    " 파일명 검색
-:Telescope live_grep     " 파일 내용 전체 검색
-:Telescope buffers       " 열린 버퍼 목록
-:Telescope help_tags     " 도움말 검색
-```
+| 키 / 명령 | 동작 |
+|-----------|------|
+| `<Space>ff` | 파일명 검색 |
+| `<Space>fg` | 파일 내용 전체 검색 (ripgrep 필요) |
+| `<Space>fb` | 열린 버퍼 목록 |
+| `:Telescope help_tags` | 도움말 검색 |
 
 Telescope 창은 **normal 모드로 열린다** — `j`/`k`로 바로 이동하고, 검색어 입력은 `i`로 시작한다.
 

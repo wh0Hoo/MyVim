@@ -1,6 +1,6 @@
 return {
   {
-    "williamboman/mason.nvim",
+    "mason-org/mason.nvim",
     cmd = { "Mason", "MasonInstall", "MasonUpdate" },
     config = function()
       require("mason").setup()
@@ -8,9 +8,24 @@ return {
   },
 
   {
-    "williamboman/mason-lspconfig.nvim",
-    dependencies = { "williamboman/mason.nvim" },
+    "mason-org/mason-lspconfig.nvim",
+    dependencies = {
+      "mason-org/mason.nvim",
+      "neovim/nvim-lspconfig",
+      "hrsh7th/cmp-nvim-lsp",
+    },
     config = function()
+      -- 모든 서버에 공통 capabilities (Neovim 0.11+ vim.lsp.config)
+      local capabilities = vim.lsp.protocol.make_client_capabilities()
+      local ok, cmp_lsp = pcall(require, "cmp_nvim_lsp")
+      if ok then
+        capabilities = cmp_lsp.default_capabilities(capabilities)
+      end
+      vim.lsp.config("*", { capabilities = capabilities })
+
+      -- v2: 설치된 서버를 자동으로 vim.lsp.enable — 수동 enable 루프 불필요.
+      -- ensure_installed 로 첫 설치되는 서버도 설치 완료 시 자동 enable 되므로
+      -- 새 머신 첫 실행에서 LSP 가 비활성이던 문제가 없다.
       require("mason-lspconfig").setup({
         ensure_installed = {
           "lua_ls",
@@ -19,30 +34,7 @@ return {
           "clangd",   -- C/C++
           "rust_analyzer",   -- Rust
         },
-        automatic_installation = true,
       })
-    end,
-  },
-
-  {
-    "neovim/nvim-lspconfig",
-    dependencies = {
-      "williamboman/mason-lspconfig.nvim",
-      "hrsh7th/cmp-nvim-lsp",
-    },
-    config = function()
-      local capabilities = vim.lsp.protocol.make_client_capabilities()
-      local ok, cmp_lsp = pcall(require, "cmp_nvim_lsp")
-      if ok then
-        capabilities = cmp_lsp.default_capabilities(capabilities)
-      end
-
-      -- vim.lsp.config 방식 (Neovim 0.11+)
-      local servers = require("mason-lspconfig").get_installed_servers()
-      for _, server in ipairs(servers) do
-        vim.lsp.config(server, { capabilities = capabilities })
-        vim.lsp.enable(server)
-      end
 
       -- LSP 키맵
       vim.api.nvim_create_autocmd("LspAttach", {
@@ -55,8 +47,8 @@ return {
           map("n", "<leader>rn", vim.lsp.buf.rename, opts)
           map("n", "<leader>ca", vim.lsp.buf.code_action, opts)
           map("n", "<leader>e",  vim.diagnostic.open_float, opts)
-          map("n", "[d",         vim.diagnostic.goto_prev, opts)
-          map("n", "]d",         vim.diagnostic.goto_next, opts)
+          map("n", "[d", function() vim.diagnostic.jump({ count = -1 }) end, opts)
+          map("n", "]d", function() vim.diagnostic.jump({ count = 1 }) end, opts)
         end,
       })
     end,

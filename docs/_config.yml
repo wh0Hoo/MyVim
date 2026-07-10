@@ -3,7 +3,7 @@ title: MyVim
 description: My Vim / NeoVim configuration
 
 # Markdown을 GitHub 스타일로 맞춤 (핵심)
-markdown: GFM
+markdown: kramdown
 
 # GitHub Pages 기본 테마 (깔끔하고 안정적)
 theme: jekyll-theme-primer

@@ -54,7 +54,7 @@ rsync -av --delete ./nvim/ ~/.config/nvim/
 
 | 항목 | 용도 | 설치 예 (Ubuntu/Debian) |
 |------|------|------------------------|
-| `nvim >= 0.11` | `vim.lsp.config` API가 0.11부터 지원 | `snap install nvim --classic` |
+| `nvim >= 0.11.2` | `vim.lsp.config` API(0.11+)와 `:CCGen`의 clangd 재시작(0.11.2+)에 필요 | `snap install nvim --classic` |
 | `git` | lazy.nvim 자동 설치에 필요 | `apt install git` |
 | `gcc` 또는 `clang` | nvim-treesitter 파서 빌드 | `apt install gcc` |
 | `node.js` | Mason이 `pyright`, `vtsls` 설치 시 필요 | `apt install nodejs` |
@@ -71,8 +71,8 @@ rsync -av --delete ./nvim/ ~/.config/nvim/
 
 - **lazy.nvim** — `init.lua`에서 없으면 git clone 자동 실행
 - **모든 플러그인** — lazy.nvim이 처음 실행 시 자동 설치
-- **LSP 서버** (`lua_ls`, `pyright`, `vtsls`, `clangd`, `rust_analyzer`) — `automatic_installation = true` 설정으로 자동
-- **Treesitter 파서** — `auto_install = true` 설정으로 파일 열 때 자동
+- **LSP 서버** (`lua_ls`, `pyright`, `vtsls`, `clangd`, `rust_analyzer`) — `ensure_installed` 설정으로 자동 설치·활성화
+- **Treesitter 파서** — 설정 로드 시 자동 설치 (`c`, `cpp`, `lua`, `python` 등)
 
 **버전 확인**
 
