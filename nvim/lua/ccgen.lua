@@ -4,10 +4,15 @@
 -- clangd 용 compile_commands.json 자동 생성
 --
 -- 사용법:
---   :CCGen     — 스캔 → include 경로 추론 → compile_commands.json 생성 → clangd 재시작
---   :CCGenInfo — 파일을 만들지 않고 추론 결과 미리보기
+--   :CCGen [dir ...]     — 스캔 → include 경로 추론 → compile_commands.json 생성 → clangd 재시작
+--   :CCGenInfo [dir ...] — 파일을 만들지 않고 추론 결과 미리보기
+--
+-- 인자 (미지정 시 전체 트리):
+--   루트 기준 상대 경로 (복수 가능), . = 현재 작업 디렉토리, % = 현재 파일의 디렉토리
+--   지정 시 그 실행에 한해 .ccgen.lua 의 source_dirs 보다 우선
 --
 -- 스캔 순서: git ls-files (미추적 포함) → 실패 시 파일시스템 스캔 폴백
+-- 소스 수가 10,000개를 넘으면 생성 전 확인을 받는다 (clangd 인덱싱 메모리 위험)
 --
 -- 파일 목록이 담긴 compile_commands.json 이 있어야 clangd 백그라운드 인덱스가
 -- 프로젝트 전체를 인덱싱하고, 열어본 적 없는 .c 의 구현부로도 점프할 수 있다.
@@ -56,6 +61,9 @@ M.defaults = {
 -- include 분석 한 슬라이스의 최대 처리 시간(ms). 초과하면 메인 루프에 양보해
 -- 스피너/입력이 반응하도록 한다 (고정 개수 배치보다 블로킹이 균일하게 짧다).
 local SLICE_MS = 16
+
+-- 소스 수가 이 값을 넘으면 생성 전 사용자 확인 (clangd 인덱싱 메모리 위험)
+local SCALE_CONFIRM = 10000
 
 -- 실행 중 재진입 방지
 local running = false
@@ -159,20 +167,32 @@ local function scan_fs(dir, cfg, sources, headers)
 end
 
 -- 성공 시 on_done(소스, 헤더), git 실패(비-git 저장소 등) 시 on_done(nil)
+-- --recurse-submodules 는 --others 와 조합 불가라 추적/미추적을 두 번 호출해 합친다
 local function scan_git(root_dir, cfg, on_done)
   local ok = pcall(vim.system, {
     "git", "-C", root_dir,
-    "ls-files", "--cached", "--others", "--exclude-standard",
+    "ls-files", "--cached", "--recurse-submodules",
   }, { text = true }, function(res)
-    vim.schedule(function()
-      if res.code ~= 0 then return on_done(nil) end
-      local sources, headers = {}, {}
-      for rel in vim.gsplit(res.stdout or "", "\n", { plain = true }) do
-        if rel ~= "" and not path_ignored(rel, cfg.ignore_dirs) then
-          classify(root_dir .. "/" .. rel, cfg, sources, headers)
+    if res.code ~= 0 then
+      return vim.schedule(function() on_done(nil) end)
+    end
+    vim.system({
+      "git", "-C", root_dir,
+      "ls-files", "--others", "--exclude-standard",
+    }, { text = true }, function(res2)
+      vim.schedule(function()
+        local sources, headers = {}, {}
+        local function add(out)
+          for rel in vim.gsplit(out or "", "\n", { plain = true }) do
+            if rel ~= "" and not path_ignored(rel, cfg.ignore_dirs) then
+              classify(root_dir .. "/" .. rel, cfg, sources, headers)
+            end
+          end
         end
-      end
-      on_done(sources, headers)
+        add(res.stdout)
+        if res2.code == 0 then add(res2.stdout) end
+        on_done(sources, headers)
+      end)
     end)
   end)
   if not ok then on_done(nil) end  -- git 미설치
@@ -395,11 +415,59 @@ local function project_root()
   return cwd
 end
 
-function M.generate()
+-- 절대 경로 → 루트 기준 상대 경로. 루트 자체면 "", 루트 밖이면 nil
+local function to_rel(abs, root)
+  if abs == root then return "" end
+  if abs:sub(1, #root + 1) == root .. "/" then return abs:sub(#root + 2) end
+  return nil
+end
+
+-- 명령 인자를 source_dirs(루트 기준 상대 경로) 로 해석. 실패 시 nil.
+--   .  = 현재 작업 디렉토리   % = 현재 파일의 디렉토리   그 외 = 루트 기준 상대 경로
+--   루트 자체를 가리키는 인자는 전체 스캔({})으로 처리
+local function resolve_dir_args(fargs, root_dir)
+  local dirs = {}
+  for _, a in ipairs(fargs) do
+    local abs
+    if a == "." then
+      abs = vim.uv.cwd()
+    elseif a == "%" then
+      local file = vim.api.nvim_buf_get_name(0)
+      if file == "" then
+        notify("% 사용 불가: 현재 버퍼가 파일이 아닙니다", vim.log.levels.WARN)
+        return nil
+      end
+      abs = vim.fs.dirname(file)
+    elseif a:sub(1, 1) == "/" then
+      abs = vim.fs.normalize(a)
+    else
+      abs = vim.fs.normalize(root_dir .. "/" .. a)
+    end
+    local rel = to_rel(abs, root_dir)
+    if not rel then
+      notify("루트 밖 경로는 지정할 수 없습니다: " .. a .. " (루트: " .. root_dir .. ")", vim.log.levels.WARN)
+      return nil
+    end
+    if rel == "" then return {} end  -- 루트 전체 = 제한 없음
+    if vim.fn.isdirectory(root_dir .. "/" .. rel) ~= 1 then
+      notify("디렉토리가 없습니다: " .. rel, vim.log.levels.WARN)
+      return nil
+    end
+    table.insert(dirs, rel)
+  end
+  return dirs
+end
+
+function M.generate(fargs)
   if running then return notify("이미 실행 중입니다", vim.log.levels.WARN) end
-  running = true
   local root_dir = project_root()
   local cfg = resolve_config(root_dir)
+  if fargs and #fargs > 0 then
+    local dirs = resolve_dir_args(fargs, root_dir)
+    if not dirs then return end
+    cfg.source_dirs = dirs  -- 이 실행에 한해 .ccgen.lua 의 source_dirs 보다 우선
+  end
+  running = true
   local spin = spinner.new("[ccgen]", "파일 스캔 중...")
   scan_project(root_dir, cfg, function(sources, headers)
     if #sources == 0 then
@@ -407,7 +475,20 @@ function M.generate()
       running = false
       return notify("소스 파일을 찾지 못했습니다: " .. root_dir, vim.log.levels.WARN)
     end
-    spin:set("include 분석")
+    if #sources > SCALE_CONFIRM then
+      spin:stop()
+      local msg = string.format(
+        "[ccgen] 소스 %d개 — 이 규모는 clangd 인덱싱 메모리가 수십 GB에 달해\n"
+        .. "시스템 멈춤(스와핑)이나 clangd 강제 종료(OOM)가 발생할 수 있습니다.\n"
+        .. "계속 생성하시겠습니까?", #sources)
+      if vim.fn.confirm(msg, "&생성\n&취소", 2, "Warning") ~= 1 then
+        running = false
+        return notify("취소됨. :CCGen <디렉토리> 로 범위를 좁혀 다시 실행할 수 있습니다")
+      end
+      spin = spinner.new("[ccgen]", "include 분석")
+    else
+      spin:set("include 분석")
+    end
     infer_per_file(sources, headers, function(per_file)
       if not per_file then  -- 분석 오류 → 생성 중단
         spin:stop()
@@ -427,11 +508,16 @@ function M.generate()
   end)
 end
 
-function M.info()
+function M.info(fargs)
   if running then return notify("이미 실행 중입니다", vim.log.levels.WARN) end
-  running = true
   local root_dir = project_root()
   local cfg = resolve_config(root_dir)
+  if fargs and #fargs > 0 then
+    local dirs = resolve_dir_args(fargs, root_dir)
+    if not dirs then return end
+    cfg.source_dirs = dirs
+  end
+  running = true
   local spin = spinner.new("[ccgen]", "파일 스캔 중...")
   scan_project(root_dir, cfg, function(sources, headers)
   spin:set("include 분석")
@@ -479,7 +565,10 @@ function M.info()
   end) -- scan_project
 end
 
-vim.api.nvim_create_user_command("CCGen", M.generate, { desc = "compile_commands.json 생성 후 clangd 재시작" })
-vim.api.nvim_create_user_command("CCGenInfo", M.info, { desc = "추론된 include 경로 미리보기" })
+vim.api.nvim_create_user_command("CCGen", function(o) M.generate(o.fargs) end,
+  { nargs = "*", complete = "dir",
+    desc = "compile_commands.json 생성 후 clangd 재시작 (인자: 대상 디렉토리, . = cwd, % = 현재 파일 위치)" })
+vim.api.nvim_create_user_command("CCGenInfo", function(o) M.info(o.fargs) end,
+  { nargs = "*", complete = "dir", desc = "추론된 include 경로 미리보기 (인자: CCGen 과 동일)" })
 
 return M

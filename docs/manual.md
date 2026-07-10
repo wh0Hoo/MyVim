@@ -261,11 +261,17 @@ C/C++ 코드 탐색은 성격이 다른 두 도구를 역할 분담해 사용한
 clangd가 헤더를 못 찾거나, 열어본 적 없는 `.c`의 구현부로 점프가 안 될 때 사용한다.
 
 ```
-:CCGen       " 스캔 → include 추론 → compile_commands.json 생성 → clangd 재시작
-:CCGenInfo   " 생성 없이 추론 결과 미리보기
+:CCGen              " 전체 트리: 스캔 → include 추론 → compile_commands.json 생성 → clangd 재시작
+:CCGen src lib      " 지정 디렉토리만 (루트 기준 상대 경로, 복수 가능)
+:CCGen .            " 현재 작업 디렉토리만
+:CCGen %            " 현재 편집 중인 파일의 디렉토리만
+:CCGenInfo          " 생성 없이 추론 결과 미리보기 (인자 동일)
 ```
 
-- `git ls-files`로 스캔한다 (비-git 프로젝트는 파일시스템 스캔으로 자동 전환)
+- `git ls-files`로 스캔한다 (submodule 내부 포함, 비-git 프로젝트는 파일시스템 스캔으로 자동 전환)
+- 소스가 10,000개를 넘으면 생성 전에 확인을 받는다 — 대형 트리는 clangd 인덱싱 메모리가
+  수십 GB에 달해 시스템 멈춤(스와핑)이나 OOM이 발생할 수 있으므로, 취소하고
+  `:CCGen <디렉토리>`로 작업 영역만 좁혀 생성하는 것을 권장 (전체 트리 검색은 gtags 담당)
 - 각 소스가 실제 include 하는 경로만 그 파일의 `-I`로 기록 → 대형 트리에서도 파일 크기 안전
 - 생성 직후 clangd가 백그라운드 인덱싱을 시작한다 (대형 트리는 수 분, `~/.cache/clangd/`에 캐시)
 - 생성물은 절대 경로를 포함하므로 커밋하지 말 것 (프로젝트 gitignore 권장)
@@ -286,11 +292,17 @@ return {
 
 GNU Global 패키지가 설치되어 있어야 한다 (`apt install global` — `gtags`, `gtags-cscope` 명령 제공). 자세한 사전 요구는 [index의 설치 항목](index.md) 참조.
 
+gtags 자체는 C/C++ 외에도 Java·PHP 등을 내장 파서로 지원하고, universal-ctags/Pygments
+연동(`GTAGSLABEL=pygments`)으로 Python·Go 등까지 확장할 수 있는 도구다. 다만 **현재 구성은
+C/C++ 확장자만 인덱싱한다** (`gtags.lua`의 `SRC_EXT` 필터) — 다른 언어의 정밀 분석은 LSP
+(pyright, vtsls, rust_analyzer)가 담당하는 구성이므로, gtags 대상을 늘리려면 `SRC_EXT`에
+확장자를 추가하면 된다 (내장 파서 외 언어는 참조 검색 정밀도가 떨어지는 점 감안).
+
 먼저 DB를 한 번 빌드한다. 소스 수정 후에도 같은 키로 재빌드하면 된다.
 
 | 키 | 동작 |
 |----|------|
-| `Ctrl-\ b` | gtags DB 빌드 (`:GtagsBuild` — 실제 소스 파일 목록만 인덱싱) |
+| `Ctrl-\ b` | gtags DB 빌드 (`:GtagsBuild` — 실제 소스 파일 목록만 인덱싱, submodule 내부 포함) |
 
 커서를 심볼에 두고 누르면 프롬프트 없이 즉시 검색된다:
 

@@ -42,18 +42,29 @@ local function collect_sources(root, on_done)
   for _, e in ipairs(exts) do ext_set["." .. e] = true end
   local done = vim.schedule_wrap(on_done)
 
-  -- git 우선 (미추적 포함, .gitignore 존중)
+  -- git 우선 (submodule 내부 추적 파일 포함, 미추적 포함, .gitignore 존중)
+  -- --recurse-submodules 는 --others 와 조합 불가라 추적/미추적을 두 번 호출해 합친다
   vim.system(
-    { "git", "-C", root, "ls-files", "--cached", "--others", "--exclude-standard" },
+    { "git", "-C", root, "ls-files", "--cached", "--recurse-submodules" },
     { text = true },
     function(res)
       if res.code == 0 then
-        local list = {}
-        for rel in vim.gsplit(res.stdout or "", "\n", { plain = true }) do
-          local ext = rel:match("(%.[^%./]+)$")
-          if rel ~= "" and ext and ext_set[ext] then table.insert(list, rel) end
-        end
-        return done(table.concat(list, "\n"))
+        return vim.system(
+          { "git", "-C", root, "ls-files", "--others", "--exclude-standard" },
+          { text = true },
+          function(res2)
+            local list = {}
+            local function add(out)
+              for rel in vim.gsplit(out or "", "\n", { plain = true }) do
+                local ext = rel:match("(%.[^%./]+)$")
+                if rel ~= "" and ext and ext_set[ext] then table.insert(list, rel) end
+              end
+            end
+            add(res.stdout)
+            if res2.code == 0 then add(res2.stdout) end
+            done(table.concat(list, "\n"))
+          end
+        )
       end
       -- 비-git: find -type f (심볼릭 링크/device 파일 제외)
       local args = { root, "-type", "f", "(" }
