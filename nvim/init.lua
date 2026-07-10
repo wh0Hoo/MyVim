@@ -13,3 +13,7 @@ require("options")
 require("keymaps")
 require("ccgen")
 require("lazy").setup("plugins")
+
+vim.api.nvim_create_user_command("MyVimVersion", function()
+  print("MyVim v" .. require("version"))
+end, { desc = "MyVim 설정 버전 표시" })

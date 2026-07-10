@@ -1,10 +1,9 @@
-주로 Vim 을 사용했었는데   
-AI 가 대세가 되면서 AI 를 편집기에 연동시켜서 사용하기 위해서 NeoVim 으로 이전하였다
+주로 Vim 을 사용했었는데 NeoVim 으로 이전하였다
 
 이 프로젝트에는 여전히 Vim 설정들이 존재한다   
 이는 내가 사용하던 설정들이다
 
-nvim 폴더의 설정들은 아래 설명하는 내 방식의 NeoVim 을 사용하는 설정이다   
+nvim 폴더 설정들은 내 방식으로 NeoVim 을 사용하는 설정이다   
 이는 Vim 에서 넘어오는 분들이 사용하기 편한 방식일거라고 생각한다
 
 ---
@@ -44,9 +43,13 @@ nvim 폴더의 설정들은 아래 설명하는 내 방식의 NeoVim 을 사용�
 ```bash
 git clone https://github.com/wh0Hoo/MyVim
 cd MyVim
+# 최신 릴리즈 버전으로 전환
+git checkout $(git describe --tags --abbrev=0)
 # 기존 내용을 모두 제거하면서 복사한다
 rsync -av --delete ./nvim/ ~/.config/nvim/
 ```
+
+특정 버전을 쓰려면 `git checkout v0.1.0` 처럼 직접 지정한다 (버전 목록: `git tag`, 이력: [CHANGELOG](https://github.com/wh0Hoo/MyVim/blob/main/CHANGELOG.md))
 
 ### 사전 설치 요구사항
 
