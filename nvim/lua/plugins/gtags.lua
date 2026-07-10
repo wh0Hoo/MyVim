@@ -24,9 +24,14 @@ local function notify(msg, level)
   vim.notify("[gtags] " .. msg, level or vim.log.levels.INFO)
 end
 
--- gtags 실행 루트: 활성 GTAGS 를 쓰는 clangd/cwd 기준
+-- gtags 실행 루트: ccgen 과 동일 규칙 — 활성 clangd root 우선, 없으면 cwd + 안내
 local function project_root()
-  return vim.uv.cwd()
+  for _, c in pairs(vim.lsp.get_clients({ name = "clangd" })) do
+    if c.config.root_dir then return c.config.root_dir end
+  end
+  local cwd = vim.uv.cwd()
+  notify("활성 clangd 가 없어 cwd 를 사용합니다: " .. cwd)
+  return cwd
 end
 
 -- root 하위 소스 파일 목록(상대경로) 을 stdin 문자열로 → on_done(list_str) 또는 on_done(nil)
@@ -139,18 +144,20 @@ local function build()
   end
   building = true
   local root = project_root()
-  notify("소스 목록 수집 중...")
+  local spin = require("spinner").new("[gtags]", "소스 목록 수집 중...")
   collect_sources(root, function(list)
     if not list or list == "" then
+      spin:stop()
       building = false
       return notify("소스 파일을 찾지 못했습니다: " .. root, vim.log.levels.WARN)
     end
-    notify("gtags 인덱싱 중...")
+    spin:set("gtags 인덱싱 중...")
     -- gtags -f - : stdin 의 파일 목록만 인덱싱 (트리 traversal 안 함)
     vim.system(
       { "gtags", "-f", "-" },
       { cwd = root, stdin = list, text = true },
       vim.schedule_wrap(function(res)
+        spin:stop()
         building = false
         if res.code == 0 then
           notify("완료: " .. root .. "/GTAGS")

@@ -53,8 +53,9 @@ M.defaults = {
   default_ignore_dirs = { "%.git", "node_modules", "%.cache", "__pycache__" },
 }
 
--- include 분석 시 한 번에 처리할 파일 수 (배치 사이에 메인 루프에 양보)
-local BATCH = 200
+-- include 분석 한 슬라이스의 최대 처리 시간(ms). 초과하면 메인 루프에 양보해
+-- 스피너/입력이 반응하도록 한다 (고정 개수 배치보다 블로킹이 균일하게 짧다).
+local SLICE_MS = 16
 
 -- 실행 중 재진입 방지
 local running = false
@@ -67,10 +68,7 @@ local function notify(msg, level)
   vim.notify("[ccgen] " .. msg, level or vim.log.levels.INFO)
 end
 
--- cmdline 한 줄 진행 표시 (메시지 히스토리에 남기지 않음)
-local function progress(msg)
-  vim.api.nvim_echo({ { "[ccgen] " .. msg } }, false, {})
-end
+local spinner = require("spinner")
 
 local function get_ext(path)
   return path:match("(%.[^%.]+)$") or ""
@@ -259,48 +257,60 @@ local function resolve_include(inc, header_index, cache)
   return out
 end
 
--- 소스 하나가 전이적으로 필요로 하는 -I 디렉토리 (정렬된 목록)
--- visited 집합으로 순환 include 를 차단, inc_cache/res_cache 는 소스 간 공유
-local function source_include_dirs(src, header_index, inc_cache, res_cache)
-  local dirs, visited = {}, { [src] = true }
-  local stack = { src }
-  while #stack > 0 do
-    local f = table.remove(stack)
-    for _, inc in ipairs(file_includes(f, inc_cache)) do
-      for _, r in ipairs(resolve_include(inc, header_index, res_cache)) do
-        dirs[r.dir] = true
-        if not visited[r.file] then
-          visited[r.file] = true
-          stack[#stack + 1] = r.file
-        end
-      end
-    end
-  end
-  local list = {}
-  for d in pairs(dirs) do list[#list + 1] = d end
-  table.sort(list)
-  return list
-end
-
 -- 각 소스별 -I 목록 계산 → on_done({ [src]=dirs })
--- 소스를 BATCH 단위로 처리하고 사이사이 메인 루프에 양보해 UI 를 유지한다
-local function infer_per_file(sources, headers, on_done)
+--
+-- 전이 DFS 는 커널 헤더처럼 한 소스의 include 폐쇄가 거대하면 한 번에 수 초씩
+-- 블로킹될 수 있다. 그래서 분석 전체를 coroutine 으로 감싸 DFS 루프 안에서
+-- SLICE_MS 마다 yield → 메인 루프(스피너/입력)가 규칙적으로 반응한다.
+-- coroutine 이 스택/visited/진행 위치를 자동 보존하므로 재개가 단순하다.
+local function infer_per_file(sources, headers, on_done, spin)
   local header_index = build_header_index(headers)
   local inc_cache, res_cache = {}, {}
   local per_file = {}
-  local pos = 1
-  local function step()
-    local last = math.min(pos + BATCH - 1, #sources)
-    for i = pos, last do
-      per_file[sources[i]] =
-        source_include_dirs(sources[i], header_index, inc_cache, res_cache)
+  local total = #sources
+  local processed = 0
+
+  local co = coroutine.create(function()
+    local slice_start = vim.uv.hrtime()
+    for idx = 1, total do
+      local src = sources[idx]
+      local dirs, visited = {}, { [src] = true }
+      local stack = { src }
+      while #stack > 0 do
+        local f = table.remove(stack)
+        for _, inc in ipairs(file_includes(f, inc_cache)) do
+          for _, r in ipairs(resolve_include(inc, header_index, res_cache)) do
+            dirs[r.dir] = true
+            if not visited[r.file] then
+              visited[r.file] = true
+              stack[#stack + 1] = r.file
+            end
+          end
+        end
+        if (vim.uv.hrtime() - slice_start) / 1e6 >= SLICE_MS then
+          coroutine.yield()
+          slice_start = vim.uv.hrtime()
+        end
+      end
+      local list = {}
+      for d in pairs(dirs) do list[#list + 1] = d end
+      table.sort(list)
+      per_file[src] = list
+      processed = idx
     end
-    pos = last + 1
-    progress(string.format("include 분석 %d/%d...", last, #sources))
-    if pos <= #sources then return vim.schedule(step) end
+  end)
+
+  local function pump()
+    local ok, err = coroutine.resume(co)
+    if not ok then
+      notify("include 분석 오류: " .. tostring(err), vim.log.levels.ERROR)
+      return on_done(nil)  -- 부분 결과로 진행하면 미처리 소스에서 2차 오류 발생
+    end
+    if spin then spin:count(processed, total); spin:tick() end
+    if coroutine.status(co) ~= "dead" then return vim.schedule(pump) end
     on_done(per_file)
   end
-  step()
+  pump()
 end
 
 -- per_file 에서 통계 (전체 고유 -I 수, 엔트리당 최대) 산출
@@ -390,22 +400,30 @@ function M.generate()
   running = true
   local root_dir = project_root()
   local cfg = resolve_config(root_dir)
-  progress("파일 스캔 중...")
+  local spin = spinner.new("[ccgen]", "파일 스캔 중...")
   scan_project(root_dir, cfg, function(sources, headers)
     if #sources == 0 then
+      spin:stop()
       running = false
       return notify("소스 파일을 찾지 못했습니다: " .. root_dir, vim.log.levels.WARN)
     end
+    spin:set("include 분석")
     infer_per_file(sources, headers, function(per_file)
-      progress("compile_commands.json 쓰는 중...")
+      if not per_file then  -- 분석 오류 → 생성 중단
+        spin:stop()
+        running = false
+        return
+      end
+      spin:set("compile_commands.json 쓰는 중...")
       local ok = write_cdb(root_dir, cfg, per_file, sources)
+      spin:stop()
       running = false
       if not ok then return end
       local total, max_n = dir_stats(per_file)
       notify(string.format("완료: 소스 %d개, 고유 -I %d개 (엔트리당 최대 %d개) → %s/compile_commands.json",
         #sources, total, max_n, root_dir))
       restart_clangd()
-    end)
+    end, spin)
   end)
 end
 
@@ -414,10 +432,13 @@ function M.info()
   running = true
   local root_dir = project_root()
   local cfg = resolve_config(root_dir)
-  progress("파일 스캔 중...")
+  local spin = spinner.new("[ccgen]", "파일 스캔 중...")
   scan_project(root_dir, cfg, function(sources, headers)
+  spin:set("include 분석")
   infer_per_file(sources, headers, function(per_file)
+  spin:stop()
   running = false
+  if not per_file then return end  -- 분석 오류 → 중단
 
   local union = {}
   for _, dirs in pairs(per_file) do
@@ -454,7 +475,7 @@ function M.info()
     end
   end
   notify(table.concat(lines, "\n"))
-  end) -- infer_per_file
+  end, spin) -- infer_per_file
   end) -- scan_project
 end
 
