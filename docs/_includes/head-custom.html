@@ -33,4 +33,50 @@
   .commit-row .value { color: #c9d1d9; }
   .commit-card a { color: #58a6ff; }
 }
+
+/* 페이지 전체 다크 모드 (GitHub 다크 팔레트, 시스템 설정 자동 추종) */
+@media (prefers-color-scheme: dark) {
+  body { background-color: #0d1117; }
+  .markdown-body {
+    color: #c9d1d9;
+    color-scheme: dark;
+  }
+  .markdown-body h1, .markdown-body h2, .markdown-body h3,
+  .markdown-body h4, .markdown-body h5, .markdown-body h6 { color: #c9d1d9; }
+  .markdown-body h1, .markdown-body h2 { border-bottom-color: #21262d; }
+  .markdown-body a { color: #58a6ff; }
+  .markdown-body hr { background-color: #30363d; }
+  .markdown-body blockquote { color: #8b949e; border-left-color: #30363d; }
+  .markdown-body table th, .markdown-body table td { border-color: #30363d; }
+  .markdown-body table tr { background-color: #0d1117; border-top-color: #21262d; }
+  .markdown-body table tr:nth-child(2n) { background-color: #161b22; }
+  .markdown-body code, .markdown-body tt {
+    background-color: rgba(110,118,129,0.4);
+    color: #c9d1d9;
+  }
+  .markdown-body pre, .markdown-body .highlight pre {
+    background-color: #161b22;
+    color: #c9d1d9;
+  }
+  .markdown-body pre code { background-color: transparent; }
+  .markdown-body kbd {
+    background-color: #161b22;
+    border-color: #30363d;
+    box-shadow: inset 0 -1px 0 #30363d;
+    color: #c9d1d9;
+  }
+
+  /* rouge 구문 하이라이팅 (GitHub 다크) */
+  .highlight .c, .highlight .c1, .highlight .cm, .highlight .cp { color: #8b949e; }
+  .highlight .k, .highlight .kd, .highlight .kn, .highlight .kp,
+  .highlight .kr, .highlight .kt, .highlight .o, .highlight .ow { color: #ff7b72; }
+  .highlight .s, .highlight .s1, .highlight .s2, .highlight .sb,
+  .highlight .sc, .highlight .sr, .highlight .ss { color: #a5d6ff; }
+  .highlight .m, .highlight .mi, .highlight .mf, .highlight .mh { color: #79c0ff; }
+  .highlight .nf, .highlight .nd { color: #d2a8ff; }
+  .highlight .nb, .highlight .nc, .highlight .no, .highlight .nt { color: #7ee787; }
+  .highlight .n, .highlight .nv, .highlight .p, .highlight .w { color: #c9d1d9; }
+  .highlight .gd { color: #ffdcd7; background-color: #67060c; }
+  .highlight .gi { color: #aff5b4; background-color: #033a16; }
+}
 </style>
