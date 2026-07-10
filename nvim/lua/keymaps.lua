@@ -21,7 +21,7 @@ map("v", "<", "<gv")
 map("v", ">", ">gv")
 
 -- 검색 하이라이트 제거
-map("n", "<Esc><Esc>", "<cmd>noh<cr>", { desc = "하이라이트 제거" })
+map("n", "<Esc>", "<cmd>noh<cr>", { desc = "하이라이트 제거" })
 
 -- relativenumber 토글
 vim.keymap.set("n", "<leader>tr", function()
