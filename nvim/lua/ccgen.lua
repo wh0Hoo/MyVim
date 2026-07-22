@@ -406,13 +406,9 @@ end
 -- 공개 API / 사용자 명령
 -------------------------------------------------------------------------------
 
+-- 프로젝트 루트: gtags 와 공용 규칙 (마커 상향, clangd-root 차용 안 함)
 local function project_root()
-  for _, c in pairs(vim.lsp.get_clients({ name = "clangd" })) do
-    if c.config.root_dir then return c.config.root_dir end
-  end
-  local cwd = vim.uv.cwd()
-  notify("활성 clangd 가 없어 cwd 를 사용합니다: " .. cwd)
-  return cwd
+  return require("project_root").find(vim.api.nvim_buf_get_name(0))
 end
 
 -- 절대 경로 → 루트 기준 상대 경로. 루트 자체면 "", 루트 밖이면 nil

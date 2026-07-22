@@ -13,6 +13,10 @@
 --   바이너리, 빌드 산출물이 인덱싱 대상에서 원천 제외된다.
 -- 증분 갱신: 저장(BufWritePost)·nvim-tree 파일 조작 시 해당 파일만 자동 반영
 --   (gtags --single-update). GTAGS 가 있는 프로젝트에서만 동작.
+-- DB 위치: db_for(파일) = 파일 디렉토리/GTAGS → 없으면 프로젝트 루트/GTAGS.
+--   증분·빌드가 이 규칙으로 "그 파일의 DB" 를 대상으로 한다 (주 검색 DB 아님).
+-- 검색(전부 검색): 주 검색 DB + :Cs db add / :GtagsAdd 로 등록한 DB(GTAGSLIBPATH)를
+--   한 쿼리로 모두 커버. 포커스 전환에 따라 바꿀 필요 없음.
 -- 사전 조건: GNU Global(gtags, gtags-cscope) 설치
 --
 -- 키맵 (<prefix> = <C-\>, 기존 .vim/plugin/cscope_maps.vim 스타일):
@@ -26,14 +30,19 @@ local function notify(msg, level)
   vim.notify("[gtags] " .. msg, level or vim.log.levels.INFO)
 end
 
--- gtags 실행 루트: ccgen 과 동일 규칙 — 활성 clangd root 우선, 없으면 cwd + 안내
-local function project_root()
-  for _, c in pairs(vim.lsp.get_clients({ name = "clangd" })) do
-    if c.config.root_dir then return c.config.root_dir end
+local project_root = require("project_root")
+
+-- 파일이 속한 GTAGS DB 의 루트 디렉토리 (DB = <반환값>/GTAGS)
+--   1. 파일 디렉토리/GTAGS 있으면 → 그 디렉토리
+--   2. 아니면 → 프로젝트 루트 (마커 상향)
+-- 증분·빌드·:GtagsAdd 가 공유해 대상 DB 가 항상 일치한다.
+local function db_for(path)
+  if path and path ~= "" then
+    local filedir = vim.fn.isdirectory(path) == 1 and path or vim.fs.dirname(path)
+    filedir = vim.fs.normalize(filedir)
+    if vim.uv.fs_stat(filedir .. "/GTAGS") then return filedir end
   end
-  local cwd = vim.uv.cwd()
-  notify("활성 clangd 가 없어 cwd 를 사용합니다: " .. cwd)
-  return cwd
+  return project_root.find(path)
 end
 
 -- root 하위 소스 파일 목록(상대경로) 을 stdin 문자열로 → on_done(list_str) 또는 on_done(nil)
@@ -89,11 +98,10 @@ local function remove_partial(root)
   end
 end
 
--- 현재 버퍼 위/상위 디렉토리에 GTAGS 가 있는지
+-- 현재 버퍼 파일의 프로젝트(db_for)에 GTAGS 가 있는지
 local function has_gtags()
-  local dir = vim.fn.expand("%:p:h")
-  if dir == "" then dir = vim.uv.cwd() end
-  return #vim.fs.find("GTAGS", { upward = true, path = dir, type = "file" }) > 0
+  local root = db_for(vim.api.nvim_buf_get_name(0))
+  return vim.uv.fs_stat(root .. "/GTAGS") ~= nil
 end
 
 -- <C-t> 로 돌아올 수 있게 현재 위치를 태그스택에 push
@@ -148,6 +156,15 @@ local function smart_tag()
   end
 end
 
+-- flock 직렬화용 (build 와 증분 갱신이 공유하므로 두 정의보다 위에 둔다)
+local LOCK_BUSY = "200"  -- flock -E: 락 획득 실패를 다른 오류와 구분하는 종료 코드
+
+local function lock_path(root)
+  local dir = vim.env.XDG_RUNTIME_DIR
+  if not dir or vim.fn.isdirectory(dir) ~= 1 then dir = "/tmp" end
+  return dir .. "/gtags-" .. vim.fn.sha256(root):sub(1, 16) .. ".lock"
+end
+
 local building = false
 
 local function build()
@@ -156,7 +173,7 @@ local function build()
     return notify("gtags 가 설치되어 있지 않습니다", vim.log.levels.ERROR)
   end
   building = true
-  local root = project_root()
+  local root = db_for(vim.api.nvim_buf_get_name(0))
   local spin = require("spinner").new("[gtags]", "소스 목록 수집 중...")
   collect_sources(root, function(list)
     if not list or list == "" then
@@ -166,14 +183,18 @@ local function build()
     end
     spin:set("gtags 인덱싱 중...")
     -- gtags -f - : stdin 의 파일 목록만 인덱싱 (트리 traversal 안 함)
+    -- 락 대기 10초: 증분 몇 건은 기다려 통과하고, 그 이상 막혀 있으면
+    -- 다른 전체 빌드가 도는 것이므로 중복 빌드 대신 알리고 중단
     vim.system(
-      { "gtags", "-f", "-" },
+      { "flock", "-w", "10", "-E", LOCK_BUSY, lock_path(root), "gtags", "-f", "-" },
       { cwd = root, stdin = list, text = true },
       vim.schedule_wrap(function(res)
         spin:stop()
         building = false
         if res.code == 0 then
           notify("완료: " .. root .. "/GTAGS")
+        elseif res.code == tonumber(LOCK_BUSY) then
+          notify("다른 gtags 작업이 진행 중입니다 — 잠시 후 다시 시도하세요", vim.log.levels.WARN)
         else
           remove_partial(root)  -- 0바이트 손상 파일이 다음 빌드를 막지 않도록
           notify("빌드 실패: " .. (res.stderr or ""), vim.log.levels.ERROR)
@@ -186,6 +207,11 @@ end
 -- 증분 갱신: nvim 안의 파일 변경(저장·생성·삭제·이름변경)을 한 파일 단위로 DB 에 반영.
 -- gtags --single-update 는 수정·신규·삭제를 모두 처리한다.
 -- 에디터 밖 변경(git pull 등)은 :GtagsBuild 전체 재빌드 담당.
+--
+-- 동시성 정책:
+--   flock  — 같은 프로젝트의 모든 gtags 쓰기(증분·전체 빌드, 인스턴스 불문)를
+--            프로젝트별 락으로 직렬화한다. gtags 는 동시 기록 보호가 없다.
+--            락은 커널이 관리하므로 보유 프로세스가 죽으면 자동 해제된다.
 local upd_ext = {}
 for _, e in ipairs(vim.split(SRC_EXT, ",", { plain = true })) do upd_ext["." .. e] = true end
 
@@ -193,15 +219,16 @@ local updating = false
 local pending = {}  -- path → true (갱신 중 들어온 요청은 병합 후 순차 처리)
 
 local function run_single_update(path)
-  local found = vim.fs.find("GTAGS", { upward = true, path = vim.fs.dirname(path), type = "file" })
-  if #found == 0 then return end  -- DB 없는 프로젝트: 아무것도 하지 않음
-  local root = vim.fs.dirname(found[1])
+  local root = db_for(path)
+  if path:sub(1, #root + 1) ~= root .. "/" then return end  -- 파일이 루트 밖
+  if not vim.uv.fs_stat(root .. "/GTAGS") then return end     -- DB 없으면 무동작 (생성 안 함)
   updating = true
   vim.system(
-    { "gtags", "--single-update", path:sub(#root + 2) },
+    { "flock", "-w", "120", "-E", LOCK_BUSY, lock_path(root),
+      "gtags", "--single-update", path:sub(#root + 2) },
     { cwd = root },
     vim.schedule_wrap(function()
-      updating = false  -- 실패해도 조용히 무시 (다음 전체 재빌드에서 해소)
+      updating = false  -- 실패·락 대기 초과 모두 조용히 무시 (다음 저장·재빌드에서 만회)
       local queued = next(pending)
       if queued then
         pending[queued] = nil
@@ -236,10 +263,37 @@ return {
           exec = "gtags-cscope",
           picker = "telescope",  -- 팝업 리스트, 선택·점프 후 자동으로 닫힘 (split 안 남음)
           skip_picker_for_single_result = true,  -- 결과 1건이면 picker 없이 바로 점프
-          project_rooter = { enable = true },     -- 상위 디렉토리에서 GTAGS 탐색
+          project_rooter = { enable = false },    -- 주 검색 DB 는 아래에서 db_for 로 직접 설정
           tag = { keymap = false },  -- <C-]> 는 아래 smart_tag 로 직접 바인딩
         },
       })
+
+      local db = require("cscope.db")
+
+      -- 다중 DB(검색 집합): :Cs db add/rm 이 conns 를 바꾸면 GTAGSLIBPATH 동기화.
+      -- gtags-cscope 는 주 DB 조회 시 GTAGSLIBPATH 의 DB 를 자동 순회 → 전부 검색.
+      local orig_update = db.update
+      db.update = function(op, files)
+        orig_update(op, files)
+        local libs = {}
+        for i = 2, #db.conns do libs[#libs + 1] = vim.fs.dirname(db.conns[i].file) end
+        vim.env.GTAGSLIBPATH = #libs > 0 and table.concat(libs, ":") or nil
+      end
+
+      -- 주 검색 DB = 현재 파일(없으면 cwd)의 db_for, 설정 시 1회 고정.
+      -- (전부 검색이라 포커스 따라 재주입할 필요 없음)
+      local pr = db_for(vim.api.nvim_buf_get_name(0))
+      db.update_primary_conn(pr .. "/GTAGS", pr)
+
+      -- 현재 버퍼의 프로젝트 GTAGS 를 검색 집합에 추가 (수동 등록)
+      vim.api.nvim_create_user_command("GtagsAdd", function()
+        local root = db_for(vim.api.nvim_buf_get_name(0))
+        if not vim.uv.fs_stat(root .. "/GTAGS") then
+          return notify("이 파일의 GTAGS 가 없습니다 — :GtagsBuild 로 생성 후 추가하세요", vim.log.levels.WARN)
+        end
+        db.update("a", { root .. "/GTAGS::" .. root })
+        notify("검색 집합에 추가: " .. root .. "/GTAGS")
+      end, { desc = "현재 버퍼의 프로젝트 GTAGS 를 검색 집합에 추가" })
 
       -- DB 빌드를 파일 목록 기반으로 교체 (플러그인 기본 gtags-cscope -bqkv 는
       -- 트리 전체를 훑다 특수 파일에서 실패하므로 <C-\>b 를 :GtagsBuild 로 덮어씀)
