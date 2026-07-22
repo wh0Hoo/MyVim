@@ -6,6 +6,32 @@ MyVim 의 버전별 변경 이력. [Semantic Versioning](https://semver.org/lang
 완결될 때 annotated tag (`v0.x.y`) 로 릴리즈하며, 릴리즈 시 `nvim/lua/version.lua` 를 함께
 갱신한다. 설치된 설정의 버전은 nvim 에서 `:MyVimVersion` 으로 확인한다.
 
+## [0.2.0] - 2026-07-22
+
+gtags/ccgen 의 DB 위치 결정을 통일하고, 설정 검토에서 나온 개선을 반영.
+
+### Added
+
+- **공용 프로젝트 루트 결정** (`project_root.lua`): 파일 위치에서 마커 상향 탐색
+  (`.projectroot` → `.git` 디렉토리(submodule gitlink 제외) → `.hg` → `.svn` → cwd). gtags·ccgen 공용
+- **`:GtagsAdd`**: 현재 버퍼의 프로젝트 `GTAGS` 를 검색 집합에 추가
+  (다중 프로젝트 전부 검색 — 주 DB + `GTAGSLIBPATH` 로 한 쿼리에 커버)
+- treesitter: help(vimdoc) 파일 하이라이팅 활성
+- editorconfig 활성 — 프로젝트 `.editorconfig` 를 존중 (없으면 전역 기본값)
+
+### Changed
+
+- gtags/ccgen: DB·CDB 위치를 `db_for(파일)`(파일 디렉토리/GTAGS → 프로젝트 루트/GTAGS)로
+  통일 — 증분·빌드·검색이 같은 규칙 사용, clangd-root 차용 제거
+- 버퍼 이동 키맵 `<S-h>`/`<S-l>` → `[b`/`]b` (화면 이동 `H`/`L` 기본 모션 보존)
+- lazy.nvim 부트스트랩을 `--branch=stable` 로 (최신 안정 릴리스)
+- nvim-tree 용 내장 netrw 비활성
+
+### Fixed
+
+- 증분 갱신 DB 와 검색 DB 불일치 (편집이 검색에 반영되지 않던 문제)
+- 커밋 메시지 버퍼(`gitcommit`/`gitrebase`)에서 커서가 이전 위치로 복원되던 문제
+
 ## [0.1.0] - 2026-07-10
 
 초기 릴리즈 — NeoVim 전환 및 C/C++ 소스 분석 체계 구축.
