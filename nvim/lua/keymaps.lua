@@ -12,9 +12,9 @@ map("n", "<C-j>", "<C-w>j")
 map("n", "<C-k>", "<C-w>k")
 map("n", "<C-l>", "<C-w>l")
 
--- 버퍼 이동
-map("n", "<S-l>", "<cmd>bnext<cr>")
-map("n", "<S-h>", "<cmd>bprev<cr>")
+-- 버퍼 이동 ([b/]b — H/L(화면 위/아래 이동) 기본 모션을 보존)
+map("n", "]b", "<cmd>bnext<cr>", { desc = "다음 버퍼" })
+map("n", "[b", "<cmd>bprev<cr>", { desc = "이전 버퍼" })
 
 -- 들여쓰기 유지
 map("v", "<", "<gv")

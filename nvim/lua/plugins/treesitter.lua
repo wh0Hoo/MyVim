@@ -18,7 +18,7 @@ return {
       vim.api.nvim_create_autocmd("FileType", {
         group = vim.api.nvim_create_augroup("TreesitterHighlight", { clear = true }),
         pattern = {
-          "c", "cpp", "lua", "python", "javascript", "typescript", "sh", "bash", "vim",
+          "c", "cpp", "lua", "python", "javascript", "typescript", "sh", "bash", "vim", "help",
         },
         callback = function()
           pcall(vim.treesitter.start)  -- 파서 미설치(설치 진행 중)면 조용히 건너뜀

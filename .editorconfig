@@ -1,5 +1,6 @@
 root = true
 
+# 기본값: 탭 문자로 들여쓰기 (indent_size=tab → 한 단계 = 탭 하나, 탭 폭은 8칸)
 [*]
 indent_style = tab
 indent_size = tab
@@ -9,7 +10,16 @@ end_of_line = lf
 trim_trailing_whitespace = true
 insert_final_newline = true
 
-[*.{py,yml}]
+# 툴링 설정 파일 — 저장소의 실제 스타일(스페이스 2칸) 반영
+[*.{lua,vim,html,json,yml,yaml}]
+indent_style = space
+indent_size = 2
+
+[.vimrc]
+indent_style = space
+indent_size = 2
+
+[*.py]
 indent_style = space
 indent_size = 4
 

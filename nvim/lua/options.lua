@@ -1,6 +1,7 @@
 local opt = vim.opt
 
-vim.g.editorconfig = false
+-- editorconfig 활성 (Neovim 기본 on). 저장소별 .editorconfig 가 아래 옵션을 덮어씀:
+-- 프로젝트에 .editorconfig 가 없으면 아래 전역 기본값이 적용된다.
 
 -- 줄 번호
 opt.number = true
@@ -42,6 +43,9 @@ opt.equalalways = false
 -- 마지막 편집 위치로 복원
 vim.api.nvim_create_autocmd("BufReadPost", {
   callback = function()
+    -- 매번 새로 쓰는 버퍼(커밋 메시지 등)는 커서를 맨 위에 두는 게 자연스러움
+    local ft = vim.bo.filetype
+    if ft == "gitcommit" or ft == "gitrebase" then return end
     local mark = vim.api.nvim_buf_get_mark(0, '"')
     if mark[1] > 0 and mark[1] <= vim.api.nvim_buf_line_count(0) then
       vim.api.nvim_win_set_cursor(0, mark)
